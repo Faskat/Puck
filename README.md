@@ -1,0 +1,63 @@
+# Voice Command Notes (Obsidian plugin)
+
+Плагин для Obsidian: по хоткею записывает голосовую команду («запланируй поездку в кафе в пятницу»), распознаёт её и создаёт заметку из шаблона.
+
+## Пайплайн
+
+```
+хоткей → MediaRecorder → Whisper API (STT) → Claude (intent + дата + место, строгий JSON)
+       → шаблон по intent → app.vault.create()
+```
+
+## Установка (dev)
+
+```bash
+cd obsidian-voice-command
+npm install
+npm run build   # или npm run dev для watch-режима
+```
+
+Затем скопировать (или симлинкнуть) `manifest.json` и `main.js` в
+`<vault>/.obsidian/plugins/voice-command-notes/` и включить плагин в настройках Obsidian.
+
+## Настройка
+
+1. В настройках плагина указать:
+   - **OpenAI API key** — для Whisper (транскрипция);
+   - **Anthropic API key** — для разбора команды;
+   - папку шаблонов и папку для новых заметок.
+2. Назначить хоткей команде **"Start / stop voice command recording"** в Settings → Hotkeys.
+3. (Опционально) Создать шаблоны в папке шаблонов: `trip.md`, `task.md`, `meeting.md`, `note.md` (fallback).
+
+### Плейсхолдеры шаблонов
+
+`{{title}}`, `{{intent}}`, `{{date}}`, `{{time}}`, `{{location}}`, `{{transcript}}`, `{{created}}`
+
+## Глобальный хоткей (PowerToys)
+
+Хоткей Obsidian работает только при фокусе на окне. Для глобального хоткея:
+
+1. Установить community-плагин **Advanced URI**.
+2. В PowerToys → Keyboard Manager назначить комбинацию на запуск:
+
+```
+obsidian://advanced-uri?commandid=voice-command-notes%3Atoggle-recording
+```
+
+(например, через `explorer.exe "obsidian://..."` в маленьком .bat/скрипте).
+
+## Режим призрака (Ghost mode)
+
+Тумблер в настройках. При включении:
+
+- никаких всплывающих уведомлений — весь пайплайн идёт молча;
+- созданная заметка **не открывается**;
+- статус виден по иконке в статус-баре (🎙 → 🔴 → ⏳ → ✅/⛔), клик по ней открывает лог;
+- ошибки пишутся в лог (команда **"Show activity log"**).
+
+Опция **"Маркер завершения"** пишет `last-run.json` в папку плагина после каждой обработки — внешний wrapper-скрипт может ждать этот файл и возвращать фокус в предыдущее окно.
+
+## Ограничения
+
+- Только десктоп (`isDesktopOnly`) — используется `MediaRecorder`.
+- Требуются API-ключи OpenAI и Anthropic (ключи хранятся в data.json плагина).

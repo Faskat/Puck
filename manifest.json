@@ -1,0 +1,9 @@
+{
+  "id": "voice-command-notes",
+  "name": "Voice Command Notes",
+  "version": "0.1.0",
+  "minAppVersion": "1.4.0",
+  "description": "Записывает голосовую команду по хоткею, распознаёт её (STT + LLM) и создаёт заметку из шаблона.",
+  "author": "faskat",
+  "isDesktopOnly": true
+}
