@@ -8,7 +8,7 @@ import { AudioRecorder } from "./recorder";
 import { transcribe } from "./transcriber";
 import { parseCommand, ParsedCommand } from "./parser";
 import { loadTemplate, renderTemplate } from "./templates";
-import { appendChecklistItem, appendPlanEvent } from "./dashboardActions";
+import { appendChecklistItem, appendPlanEvent, applyFinanceCommand } from "./dashboardActions";
 import { ActivityLog } from "./logger";
 
 type PipelineState = "idle" | "recording" | "processing" | "ok" | "error";
@@ -24,6 +24,7 @@ const STATUS_ICONS: Record<PipelineState, string> = {
 const ACTION_LABELS: Record<string, string> = {
   checklist: "Добавлено в чек-лист",
   plan: "Добавлено в план дня",
+  finance: "Финансы обновлены",
 };
 
 export default class VoiceCommandPlugin extends Plugin {
@@ -144,6 +145,9 @@ export default class VoiceCommandPlugin extends Plugin {
     if (cmd.intent === "plan") {
       return appendPlanEvent(this.app, this.settings.plansFolder, cmd);
     }
+    if (cmd.intent === "finance") {
+      return applyFinanceCommand(this.app, this.settings.financeNote, cmd);
+    }
     return this.createNote(cmd);
   }
 
@@ -237,6 +241,7 @@ class ConfirmModal extends Modal {
     const titles: Record<string, string> = {
       checklist: "Добавить в чек-лист?",
       plan: "Добавить в план дня?",
+      finance: "Обновить финансы?",
     };
     this.titleEl.setText(titles[this.cmd.intent] ?? "Создать заметку?");
     const c = this.contentEl;
@@ -264,6 +269,21 @@ class ConfirmModal extends Modal {
         text: `Время: ${this.cmd.time ?? "09:00"} (${this.cmd.durationMinutes ?? 60} мин)`,
       });
       c.createEl("p", { text: `Категория: ${this.cmd.planCategory ?? "другое"}` });
+    }
+    if (this.cmd.intent === "finance") {
+      const actionLabels: Record<string, string> = {
+        income: "Пополнение карты",
+        expense: "Трата с карты",
+        set_stipend: "Новая стипендия",
+        set_investments: "Новые инвестиции",
+      };
+      c.createEl("p", {
+        text: `Действие: ${actionLabels[this.cmd.financeAction ?? ""] ?? this.cmd.financeAction}`,
+      });
+      if (this.cmd.financeAction === "income" || this.cmd.financeAction === "expense") {
+        c.createEl("p", { text: `Карта: ${this.cmd.cardName ?? "основная"}` });
+      }
+      c.createEl("p", { text: `Сумма: ${this.cmd.amount ?? 0}${this.cmd.currency ? " " + this.cmd.currency : ""}` });
     }
     c.createEl("p", { text: `«${this.cmd.transcript}»` }).style.opacity = "0.7";
 

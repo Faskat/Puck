@@ -40,6 +40,23 @@ async function ensureParentFolder(app: App, path: string): Promise<void> {
   }
 }
 
+function toNumber(v: unknown): number {
+  if (typeof v === "number") return v;
+  if (typeof v === "string") {
+    const n = parseFloat(v.replace(/[^\d.,-]/g, "").replace(",", "."));
+    return isNaN(n) ? 0 : n;
+  }
+  return 0;
+}
+
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
+function normalizeCardName(name: string): string {
+  return name.trim().toLowerCase().replace(/\s+/g, "_") || "основная";
+}
+
 /** Добавляет пункт "- [ ] title" в раздел "Сегодня" или "На неделе" заметки чек-листа. */
 export async function appendChecklistItem(
   app: App,
@@ -100,4 +117,43 @@ export async function appendPlanEvent(
     "",
   ].join("\n");
   return app.vault.create(path, body);
+}
+
+/**
+ * Правит frontmatter заметки финансов через официальный API Obsidian
+ * (`processFrontMatter`) — безопаснее ручного редактирования YAML.
+ * Поля `карта_<имя>` (баланс), `стипендия`, `инвестиции` /
+ * `инвестиции_валюта` / `инвестиции_описание` — те же, что читает
+ * карточка "Финансы" в плагине "Дашборд заказов".
+ */
+export async function applyFinanceCommand(
+  app: App,
+  financeNotePath: string,
+  cmd: ParsedCommand
+): Promise<TFile> {
+  const path = normalizePath(financeNotePath);
+  const amount = cmd.amount ?? 0;
+
+  let file = app.vault.getAbstractFileByPath(path);
+  if (!(file instanceof TFile)) {
+    await ensureParentFolder(app, path);
+    file = await app.vault.create(path, "---\n---\n\n# Финансы\n");
+  }
+
+  await app.fileManager.processFrontMatter(file as TFile, (fm: Record<string, unknown>) => {
+    if (cmd.financeAction === "income" || cmd.financeAction === "expense") {
+      const key = `карта_${normalizeCardName(cmd.cardName ?? "основная")}`;
+      const current = toNumber(fm[key]);
+      const delta = cmd.financeAction === "income" ? amount : -amount;
+      fm[key] = round2(current + delta);
+    } else if (cmd.financeAction === "set_stipend") {
+      fm["стипендия"] = amount;
+    } else if (cmd.financeAction === "set_investments") {
+      fm["инвестиции"] = amount;
+      if (cmd.currency) fm["инвестиции_валюта"] = cmd.currency;
+      if (cmd.title) fm["инвестиции_описание"] = cmd.title;
+    }
+  });
+
+  return file as TFile;
 }

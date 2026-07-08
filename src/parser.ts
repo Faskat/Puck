@@ -26,6 +26,12 @@ export interface ParsedCommand {
   planCategory: string | null;
   /** Длительность ивента плана дня в минутах, по умолчанию 60 (только для intent=plan). */
   durationMinutes: number | null;
+  /** Действие с финансами: income | expense | set_stipend | set_investments (только для intent=finance). */
+  financeAction: string | null;
+  /** Название карты одним словом, напр. "моно" (только для income/expense). */
+  cardName: string | null;
+  /** Сумма операции / новое значение (только для intent=finance). */
+  amount: number | null;
   /** Полный исходный транскрипт. */
   transcript: string;
 }
@@ -35,7 +41,7 @@ const RESPONSE_SCHEMA = {
   properties: {
     intent: {
       type: "string",
-      enum: ["trip", "task", "meeting", "order", "checklist", "plan", "note"],
+      enum: ["trip", "task", "meeting", "order", "checklist", "plan", "finance", "note"],
     },
     title: { type: "string" },
     date: { type: ["string", "null"] },
@@ -55,6 +61,14 @@ const RESPONSE_SCHEMA = {
       ],
     },
     durationMinutes: { type: ["number", "null"] },
+    financeAction: {
+      anyOf: [
+        { type: "string", enum: ["income", "expense", "set_stipend", "set_investments"] },
+        { type: "null" },
+      ],
+    },
+    cardName: { type: ["string", "null"] },
+    amount: { type: ["number", "null"] },
   },
   required: [
     "intent",
@@ -69,6 +83,9 @@ const RESPONSE_SCHEMA = {
     "scope",
     "planCategory",
     "durationMinutes",
+    "financeAction",
+    "cardName",
+    "amount",
   ],
   additionalProperties: false,
 } as const;
@@ -110,6 +127,8 @@ export async function parseCommand(
         `plan — конкретный ивент с точным временем начала на определённый день, который нужно вставить ` +
         `в расписание/план дня (например "поставь в план на 15:00 созвон с клиентом", ` +
         `"добавь в расписание в 9 утра тренировку на полчаса"); ` +
+        `finance — движение денег: траты/пополнения по карте, изменение стипендии или инвестиций ` +
+        `(ключевые слова: "потратил", "закинул", "пополнил", "снял", "стипендия", "инвестиции"); ` +
         `note — всё остальное. ` +
         `title — короткий заголовок на языке команды, без дат. ` +
         `Для intent=order дополнительно заполни: client — имя заказчика; price — число (без валюты); ` +
@@ -124,7 +143,16 @@ export async function parseCommand(
         `durationMinutes — длительность в минутах, если названа ("на полчаса"→30, "на час"→60), иначе 60; ` +
         `planCategory — одно из "учёба"/"работа"/"выпускная"/"личное"/"другое" по смыслу команды, иначе "другое"; ` +
         `date — на какой день (если не сказано — сегодня, ${today}). ` +
-        `Поля client/price/currency/orderType/scope/planCategory/durationMinutes, не относящиеся к текущему intent, — null.`,
+        `Для intent=finance дополнительно заполни: financeAction — "expense" если потратил/списал деньги ` +
+        `с карты; "income" если закинул/пополнил/получил деньги на карту; "set_stipend" если назвал новую ` +
+        `сумму стипендии; "set_investments" если назвал новую сумму инвестиций. ` +
+        `cardName — название карты одним словом в нижнем регистре без пробелов (например "моно", "приват"), ` +
+        `если не названа явно — "основная"; null для set_stipend/set_investments. ` +
+        `amount — число: сумма траты/пополнения, новая сумма стипендии или инвестиций. ` +
+        `Для set_investments можно также заполнить currency (валюта инвестиций) и title — краткое описание ` +
+        `одной фразой (например "акции Apple, не для трат"), иначе title пустой строкой. ` +
+        `Поля client/price/currency/orderType/scope/planCategory/durationMinutes/financeAction/cardName/amount, ` +
+        `не относящиеся к текущему intent, — null (кроме случаев, явно описанных выше).`,
       messages: [{ role: "user", content: transcript }],
       output_config: {
         format: { type: "json_schema", schema: RESPONSE_SCHEMA },

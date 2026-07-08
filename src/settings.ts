@@ -18,6 +18,8 @@ export interface VoiceCommandSettings {
   checklistNote: string;
   /** Папка планов дня (intent=plan) — должна совпадать с plansFolder плагина "Дашборд заказов". */
   plansFolder: string;
+  /** Заметка финансов (intent=finance) — должна совпадать с financeNote плагина "Дашборд заказов". */
+  financeNote: string;
   /** Показывать превью и просить подтверждение перед созданием заметки. */
   confirmBeforeCreate: boolean;
   /** Режим призрака: без уведомлений, заметка не открывается. */
@@ -35,6 +37,7 @@ export const DEFAULT_SETTINGS: VoiceCommandSettings = {
   ordersFolder: "Работа/Орджус/Заказы",
   checklistNote: "Постоянные/Чек-лист.md",
   plansFolder: "Планы",
+  financeNote: "Постоянные/Финансы.md",
   confirmBeforeCreate: true,
   ghostMode: false,
   writeDoneMarker: false,
@@ -151,6 +154,21 @@ export class VoiceCommandSettingTab extends PluginSettingTab {
       .addText((t) =>
         t.setValue(this.plugin.settings.plansFolder).onChange(async (v) => {
           this.plugin.settings.plansFolder = v.trim();
+          await this.plugin.saveSettings();
+        })
+      );
+
+    new Setting(containerEl)
+      .setName("Заметка финансов")
+      .setDesc(
+        "Куда пишутся операции с intent=finance (\"потратил 500 гривен с карты Моно\", " +
+          "\"стипендия 700\", \"инвестиции 1300 долларов\"). Должна совпадать с настройкой " +
+          "\"Заметка финансов\" в плагине \"Дашборд заказов\" (правит поля карта_*, стипендия, " +
+          "инвестиции, инвестиции_валюта, инвестиции_описание во frontmatter)."
+      )
+      .addText((t) =>
+        t.setValue(this.plugin.settings.financeNote).onChange(async (v) => {
+          this.plugin.settings.financeNote = v.trim();
           await this.plugin.saveSettings();
         })
       );
