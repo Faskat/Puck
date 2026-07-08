@@ -2,11 +2,11 @@ import { App, PluginSettingTab, Setting } from "obsidian";
 import type VoiceCommandPlugin from "./main";
 
 export interface VoiceCommandSettings {
-  /** API-ключ OpenAI (Whisper STT). */
-  openaiApiKey: string;
+  /** API-ключ ElevenLabs (Scribe STT). */
+  elevenLabsApiKey: string;
   /** API-ключ Anthropic (разбор команды в JSON). */
   anthropicApiKey: string;
-  /** Язык речи для Whisper (ISO-639-1), пусто = автоопределение. */
+  /** Язык речи для Scribe (ISO-639-1), пусто = автоопределение. */
   language: string;
   /** Папка vault с шаблонами заметок (по одному .md на intent). */
   templateFolder: string;
@@ -27,7 +27,7 @@ export interface VoiceCommandSettings {
 }
 
 export const DEFAULT_SETTINGS: VoiceCommandSettings = {
-  openaiApiKey: "",
+  elevenLabsApiKey: "",
   anthropicApiKey: "",
   language: "ru",
   templateFolder: "Templates/VoiceCommands",
@@ -55,14 +55,14 @@ export class VoiceCommandSettingTab extends PluginSettingTab {
     new Setting(containerEl).setName("API-ключи").setHeading();
 
     new Setting(containerEl)
-      .setName("OpenAI API key")
-      .setDesc("Используется для транскрипции речи (Whisper).")
+      .setName("ElevenLabs API key")
+      .setDesc("Используется для транскрипции речи (Scribe STT).")
       .addText((t) =>
         t
-          .setPlaceholder("sk-...")
-          .setValue(this.plugin.settings.openaiApiKey)
+          .setPlaceholder("sk_...")
+          .setValue(this.plugin.settings.elevenLabsApiKey)
           .onChange(async (v) => {
-            this.plugin.settings.openaiApiKey = v.trim();
+            this.plugin.settings.elevenLabsApiKey = v.trim();
             await this.plugin.saveSettings();
           })
       );
@@ -82,7 +82,7 @@ export class VoiceCommandSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("Язык речи")
-      .setDesc("Код ISO-639-1 для Whisper (например ru). Пусто — автоопределение.")
+      .setDesc("Код ISO-639-1 для Scribe (например ru). Пусто — автоопределение.")
       .addText((t) =>
         t.setValue(this.plugin.settings.language).onChange(async (v) => {
           this.plugin.settings.language = v.trim();

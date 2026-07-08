@@ -1,7 +1,7 @@
 import { requestUrl } from "obsidian";
 
 /**
- * Транскрипция через OpenAI Whisper API.
+ * Транскрипция через ElevenLabs Speech-to-Text (Scribe).
  * Используем requestUrl (идёт через главный процесс Electron) вместо fetch,
  * чтобы не упереться в CORS. multipart-тело собираем вручную.
  */
@@ -10,16 +10,16 @@ export async function transcribe(
   apiKey: string,
   language: string
 ): Promise<string> {
-  if (!apiKey) throw new Error("Не задан OpenAI API key (настройки плагина)");
+  if (!apiKey) throw new Error("Не задан ElevenLabs API key (настройки плагина)");
 
   const boundary = "----VoiceCommandBoundary" + Date.now().toString(16);
   const body = await buildMultipartBody(boundary, audio, language);
 
   const resp = await requestUrl({
-    url: "https://api.openai.com/v1/audio/transcriptions",
+    url: "https://api.elevenlabs.io/v1/speech-to-text",
     method: "POST",
     headers: {
-      Authorization: `Bearer ${apiKey}`,
+      "xi-api-key": apiKey,
       "Content-Type": `multipart/form-data; boundary=${boundary}`,
     },
     body,
@@ -27,10 +27,10 @@ export async function transcribe(
   });
 
   if (resp.status !== 200) {
-    throw new Error(`Whisper API ${resp.status}: ${resp.text?.slice(0, 300)}`);
+    throw new Error(`ElevenLabs API ${resp.status}: ${resp.text?.slice(0, 300)}`);
   }
   const text: string = resp.json?.text ?? "";
-  if (!text.trim()) throw new Error("Whisper вернул пустой транскрипт");
+  if (!text.trim()) throw new Error("ElevenLabs вернул пустой транскрипт");
   return text.trim();
 }
 
@@ -47,8 +47,8 @@ async function buildMultipartBody(
       `--${boundary}\r\nContent-Disposition: form-data; name="${name}"\r\n\r\n${value}\r\n`
     );
 
-  parts.push(field("model", "whisper-1"));
-  if (language) parts.push(field("language", language));
+  parts.push(field("model_id", "scribe_v1"));
+  if (language) parts.push(field("language_code", language));
 
   parts.push(
     enc.encode(

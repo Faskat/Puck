@@ -5,7 +5,7 @@
 ## Пайплайн
 
 ```
-хоткей → MediaRecorder → Whisper API (STT) → Claude (intent + дата + место, строгий JSON)
+хоткей → MediaRecorder → ElevenLabs Scribe (STT) → Claude (intent + дата + место, строгий JSON)
        → шаблон по intent → app.vault.create()
 ```
 
@@ -23,7 +23,7 @@ npm run build   # или npm run dev для watch-режима
 ## Настройка
 
 1. В настройках плагина указать:
-   - **OpenAI API key** — для Whisper (транскрипция);
+   - **ElevenLabs API key** — для Scribe (транскрипция), ключ берётся на elevenlabs.io (есть бесплатный тариф без карты);
    - **Anthropic API key** — для разбора команды;
    - папку шаблонов и папку для новых заметок.
 2. Назначить хоткей команде **"Start / stop voice command recording"** в Settings → Hotkeys.
@@ -85,4 +85,4 @@ obsidian://advanced-uri?commandid=voice-command-notes%3Atoggle-recording
 ## Ограничения
 
 - Только десктоп (`isDesktopOnly`) — используется `MediaRecorder`.
-- Требуются API-ключи OpenAI и Anthropic (ключи хранятся в data.json плагина).
+- Требуются API-ключи ElevenLabs и Anthropic (ключи хранятся в data.json плагина).

@@ -95,7 +95,7 @@ export default class VoiceCommandPlugin extends Plugin {
       this.notify("Транскрибация…");
       const transcript = await transcribe(
         audio,
-        this.settings.openaiApiKey,
+        this.settings.elevenLabsApiKey,
         this.settings.language
       );
       this.log.info(`Транскрипт: ${transcript}`);
