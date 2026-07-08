@@ -14,6 +14,10 @@ export interface VoiceCommandSettings {
   notesFolder: string;
   /** Папка для заказов (intent=order) — должна совпадать с ordersFolder плагина "Дашборд заказов". */
   ordersFolder: string;
+  /** Заметка чек-листа (intent=checklist) — должна совпадать с checklistNote плагина "Дашборд заказов". */
+  checklistNote: string;
+  /** Папка планов дня (intent=plan) — должна совпадать с plansFolder плагина "Дашборд заказов". */
+  plansFolder: string;
   /** Показывать превью и просить подтверждение перед созданием заметки. */
   confirmBeforeCreate: boolean;
   /** Режим призрака: без уведомлений, заметка не открывается. */
@@ -29,6 +33,8 @@ export const DEFAULT_SETTINGS: VoiceCommandSettings = {
   templateFolder: "Templates/VoiceCommands",
   notesFolder: "VoiceNotes",
   ordersFolder: "Работа/Орджус/Заказы",
+  checklistNote: "Постоянные/Чек-лист.md",
+  plansFolder: "Планы",
   confirmBeforeCreate: true,
   ghostMode: false,
   writeDoneMarker: false,
@@ -117,6 +123,34 @@ export class VoiceCommandSettingTab extends PluginSettingTab {
       .addText((t) =>
         t.setValue(this.plugin.settings.ordersFolder).onChange(async (v) => {
           this.plugin.settings.ordersFolder = v.trim();
+          await this.plugin.saveSettings();
+        })
+      );
+
+    new Setting(containerEl)
+      .setName("Заметка чек-листа")
+      .setDesc(
+        "Куда добавляются пункты с intent=checklist (\"добавь в чек-лист...\"). " +
+          "Должна совпадать с настройкой \"Заметка чек-листа\" в плагине \"Дашборд заказов\" " +
+          "(там ищутся разделы «## Сегодня» / «## На неделе»)."
+      )
+      .addText((t) =>
+        t.setValue(this.plugin.settings.checklistNote).onChange(async (v) => {
+          this.plugin.settings.checklistNote = v.trim();
+          await this.plugin.saveSettings();
+        })
+      );
+
+    new Setting(containerEl)
+      .setName("Папка планов дня")
+      .setDesc(
+        "Куда добавляются ивенты с intent=plan (\"поставь в план на 15:00...\"). " +
+          "Должна совпадать с настройкой папки планов в плагине \"Дашборд заказов\" " +
+          "(файл вида <папка>/YYYY-MM-DD.md, раздел «## Ивенты»)."
+      )
+      .addText((t) =>
+        t.setValue(this.plugin.settings.plansFolder).onChange(async (v) => {
+          this.plugin.settings.plansFolder = v.trim();
           await this.plugin.saveSettings();
         })
       );

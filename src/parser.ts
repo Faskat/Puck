@@ -2,13 +2,13 @@ import { requestUrl } from "obsidian";
 
 /** Результат разбора голосовой команды. */
 export interface ParsedCommand {
-  /** trip | task | meeting | order | note (fallback) — определяет файл шаблона. */
+  /** trip | task | meeting | order | checklist | plan | note (fallback) — определяет действие. */
   intent: string;
-  /** Короткий заголовок заметки. */
+  /** Короткий заголовок заметки / название пункта или ивента. */
   title: string;
-  /** Дата события / дедлайна в формате YYYY-MM-DD, null если не прозвучала. */
+  /** Дата события / дедлайна / дня плана в формате YYYY-MM-DD, null если не прозвучала. */
   date: string | null;
-  /** Время HH:mm, null если не прозвучало. */
+  /** Время начала HH:mm (meeting, plan), null если не прозвучало. */
   time: string | null;
   /** Место, null если не прозвучало. */
   location: string | null;
@@ -20,6 +20,12 @@ export interface ParsedCommand {
   currency: string | null;
   /** Тип заказа, напр. "спавн"/"карта"/"лобби" (только для intent=order). */
   orderType: string | null;
+  /** Куда добавить пункт чек-листа: today | week (только для intent=checklist). */
+  scope: string | null;
+  /** Категория ивента плана дня: учёба/работа/выпускная/личное/другое (только для intent=plan). */
+  planCategory: string | null;
+  /** Длительность ивента плана дня в минутах, по умолчанию 60 (только для intent=plan). */
+  durationMinutes: number | null;
   /** Полный исходный транскрипт. */
   transcript: string;
 }
@@ -27,7 +33,10 @@ export interface ParsedCommand {
 const RESPONSE_SCHEMA = {
   type: "object",
   properties: {
-    intent: { type: "string", enum: ["trip", "task", "meeting", "order", "note"] },
+    intent: {
+      type: "string",
+      enum: ["trip", "task", "meeting", "order", "checklist", "plan", "note"],
+    },
     title: { type: "string" },
     date: { type: ["string", "null"] },
     time: { type: ["string", "null"] },
@@ -36,6 +45,12 @@ const RESPONSE_SCHEMA = {
     price: { type: ["number", "null"] },
     currency: { type: ["string", "null"], enum: ["RUB", "UAH", "USD", "EUR", null] },
     orderType: { type: ["string", "null"] },
+    scope: { type: ["string", "null"], enum: ["today", "week", null] },
+    planCategory: {
+      type: ["string", "null"],
+      enum: ["учёба", "работа", "выпускная", "личное", "другое", null],
+    },
+    durationMinutes: { type: ["number", "null"] },
   },
   required: [
     "intent",
@@ -47,6 +62,9 @@ const RESPONSE_SCHEMA = {
     "price",
     "currency",
     "orderType",
+    "scope",
+    "planCategory",
+    "durationMinutes",
   ],
   additionalProperties: false,
 } as const;
@@ -79,15 +97,30 @@ export async function parseCommand(
       system:
         `Ты разбираешь голосовые команды для создания заметок. Сегодня ${today} (${weekday}). ` +
         `Относительные даты ("в пятницу", "завтра", "через неделю") разрешай в ближайшую будущую дату от сегодня. ` +
-        `intent: trip — поездки/путешествия; task — задачи/дела; meeting — встречи/созвоны; ` +
+        `intent: trip — поездки/путешествия; task — задачи/дела, которые заслуживают отдельной заметки; ` +
+        `meeting — встречи/созвоны, которые заслуживают отдельной заметки; ` +
         `order — заказ/комиссия для клиента (ключевые слова: "заказ", "закажи", "клиент", "комиссия", ` +
-        `упоминание цены/суммы за работу); note — всё остальное. ` +
+        `упоминание цены/суммы за работу); ` +
+        `checklist — короткое дело без даты и точного времени, которое нужно просто отметить галочкой ` +
+        `(например "добавь в чек-лист позвонить в банк", "не забыть купить корм"); ` +
+        `plan — конкретный ивент с точным временем начала на определённый день, который нужно вставить ` +
+        `в расписание/план дня (например "поставь в план на 15:00 созвон с клиентом", ` +
+        `"добавь в расписание в 9 утра тренировку на полчаса"); ` +
+        `note — всё остальное. ` +
         `title — короткий заголовок на языке команды, без дат. ` +
         `Для intent=order дополнительно заполни: client — имя заказчика; price — число (без валюты); ` +
         `currency — RUB/UAH/USD/EUR (если явно не названа валюта, но названы "рублей"/"руб" → RUB, ` +
         `"гривен"/"грн" → UAH, "долларов"/"баксов" → USD, "евро" → EUR; если валюта вообще не упомянута → RUB); ` +
         `orderType — тип работы одним-двумя словами (например "спавн", "карта", "лобби"), null если не ясно; ` +
-        `date — дедлайн заказа, если прозвучал. Для остальных intent поля client/price/currency/orderType — null.`,
+        `date — дедлайн заказа, если прозвучал. ` +
+        `Для intent=checklist дополнительно заполни: scope — "week", если явно сказано "на этой неделе"/"на неделю", ` +
+        `иначе "today". ` +
+        `Для intent=plan дополнительно заполни: time — время начала HH:mm (если не названо — предположи разумное ` +
+        `по контексту, например "утром"→09:00, "днём"→13:00, "вечером"→19:00); ` +
+        `durationMinutes — длительность в минутах, если названа ("на полчаса"→30, "на час"→60), иначе 60; ` +
+        `planCategory — одно из "учёба"/"работа"/"выпускная"/"личное"/"другое" по смыслу команды, иначе "другое"; ` +
+        `date — на какой день (если не сказано — сегодня, ${today}). ` +
+        `Поля client/price/currency/orderType/scope/planCategory/durationMinutes, не относящиеся к текущему intent, — null.`,
       messages: [{ role: "user", content: transcript }],
       output_config: {
         format: { type: "json_schema", schema: RESPONSE_SCHEMA },

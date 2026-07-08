@@ -8,6 +8,7 @@ import { AudioRecorder } from "./recorder";
 import { transcribe } from "./transcriber";
 import { parseCommand, ParsedCommand } from "./parser";
 import { loadTemplate, renderTemplate } from "./templates";
+import { appendChecklistItem, appendPlanEvent } from "./dashboardActions";
 import { ActivityLog } from "./logger";
 
 type PipelineState = "idle" | "recording" | "processing" | "ok" | "error";
@@ -18,6 +19,11 @@ const STATUS_ICONS: Record<PipelineState, string> = {
   processing: "⏳",
   ok: "✅",
   error: "⛔",
+};
+
+const ACTION_LABELS: Record<string, string> = {
+  checklist: "Добавлено в чек-лист",
+  plan: "Добавлено в план дня",
 };
 
 export default class VoiceCommandPlugin extends Plugin {
@@ -109,9 +115,10 @@ export default class VoiceCommandPlugin extends Plugin {
         }
       }
 
-      const file = await this.createNote(cmd);
-      this.log.info(`Создана заметка: ${file.path}`);
-      this.notify(`Заметка создана: ${file.basename}`);
+      const file = await this.applyCommand(cmd);
+      const actionLabel = ACTION_LABELS[cmd.intent] ?? "Заметка создана";
+      this.log.info(`${actionLabel}: ${file.path}`);
+      this.notify(`${actionLabel}: ${file.basename}`);
 
       if (!this.settings.ghostMode) {
         await this.app.workspace.getLeaf(false).openFile(file);
@@ -122,6 +129,22 @@ export default class VoiceCommandPlugin extends Plugin {
       this.fail(errMsg(e));
       await this.writeDoneMarker(false, null);
     }
+  }
+
+  /** Разбирает по intent: заметки создаются с нуля, чек-лист/план — дописываются в существующие файлы. */
+  private async applyCommand(cmd: ParsedCommand): Promise<TFile> {
+    if (cmd.intent === "checklist") {
+      return appendChecklistItem(
+        this.app,
+        this.settings.checklistNote,
+        cmd.title,
+        cmd.scope === "week" ? "week" : "today"
+      );
+    }
+    if (cmd.intent === "plan") {
+      return appendPlanEvent(this.app, this.settings.plansFolder, cmd);
+    }
+    return this.createNote(cmd);
   }
 
   private async createNote(cmd: ParsedCommand): Promise<TFile> {
@@ -211,7 +234,11 @@ class ConfirmModal extends Modal {
   }
 
   onOpen(): void {
-    this.titleEl.setText("Создать заметку?");
+    const titles: Record<string, string> = {
+      checklist: "Добавить в чек-лист?",
+      plan: "Добавить в план дня?",
+    };
+    this.titleEl.setText(titles[this.cmd.intent] ?? "Создать заметку?");
     const c = this.contentEl;
     c.createEl("p", { text: `Заголовок: ${this.cmd.title}` });
     c.createEl("p", { text: `Тип: ${this.cmd.intent}` });
@@ -226,6 +253,17 @@ class ConfirmModal extends Modal {
         text: `Цена: ${this.cmd.price ?? 0} ${this.cmd.currency ?? "RUB"}`,
       });
       if (this.cmd.orderType) c.createEl("p", { text: `Тип заказа: ${this.cmd.orderType}` });
+    }
+    if (this.cmd.intent === "checklist") {
+      c.createEl("p", {
+        text: `Куда: ${this.cmd.scope === "week" ? "На неделе" : "Сегодня"}`,
+      });
+    }
+    if (this.cmd.intent === "plan") {
+      c.createEl("p", {
+        text: `Время: ${this.cmd.time ?? "09:00"} (${this.cmd.durationMinutes ?? 60} мин)`,
+      });
+      c.createEl("p", { text: `Категория: ${this.cmd.planCategory ?? "другое"}` });
     }
     c.createEl("p", { text: `«${this.cmd.transcript}»` }).style.opacity = "0.7";
 
