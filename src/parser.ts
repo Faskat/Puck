@@ -43,12 +43,16 @@ const RESPONSE_SCHEMA = {
     location: { type: ["string", "null"] },
     client: { type: ["string", "null"] },
     price: { type: ["number", "null"] },
-    currency: { type: ["string", "null"], enum: ["RUB", "UAH", "USD", "EUR", null] },
+    currency: {
+      anyOf: [{ type: "string", enum: ["RUB", "UAH", "USD", "EUR"] }, { type: "null" }],
+    },
     orderType: { type: ["string", "null"] },
-    scope: { type: ["string", "null"], enum: ["today", "week", null] },
+    scope: { anyOf: [{ type: "string", enum: ["today", "week"] }, { type: "null" }] },
     planCategory: {
-      type: ["string", "null"],
-      enum: ["учёба", "работа", "выпускная", "личное", "другое", null],
+      anyOf: [
+        { type: "string", enum: ["учёба", "работа", "выпускная", "личное", "другое"] },
+        { type: "null" },
+      ],
     },
     durationMinutes: { type: ["number", "null"] },
   },
