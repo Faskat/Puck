@@ -27,11 +27,14 @@ const ACTION_LABELS: Record<string, string> = {
   finance: "Финансы обновлены",
 };
 
+const MAX_RECORDING_MS = 60_000;
+
 export default class VoiceCommandPlugin extends Plugin {
   settings: VoiceCommandSettings = DEFAULT_SETTINGS;
   private recorder = new AudioRecorder();
   private log = new ActivityLog();
   private statusBar: HTMLElement | null = null;
+  private recordingTimeout: number | null = null;
 
   async onload(): Promise<void> {
     await this.loadSettings();
@@ -54,6 +57,7 @@ export default class VoiceCommandPlugin extends Plugin {
       id: "cancel-recording",
       name: "Cancel recording",
       callback: () => {
+        this.clearRecordingTimeout();
         this.recorder.cancel();
         this.setState("idle");
         this.notify("Запись отменена");
@@ -68,6 +72,7 @@ export default class VoiceCommandPlugin extends Plugin {
   }
 
   onunload(): void {
+    this.clearRecordingTimeout();
     this.recorder.cancel();
   }
 
@@ -81,13 +86,28 @@ export default class VoiceCommandPlugin extends Plugin {
         await this.recorder.start();
         this.setState("recording");
         this.notify("Запись… нажмите хоткей ещё раз, чтобы остановить");
+        this.recordingTimeout = window.setTimeout(() => {
+          this.recordingTimeout = null;
+          if (this.recorder.isRecording) {
+            this.notify("Достигнут лимит записи (1 минута) — останавливаю");
+            void this.stopAndProcess();
+          }
+        }, MAX_RECORDING_MS);
       } catch (e) {
         this.fail(`Не удалось начать запись: ${errMsg(e)}`);
       }
     }
   }
 
+  private clearRecordingTimeout(): void {
+    if (this.recordingTimeout !== null) {
+      window.clearTimeout(this.recordingTimeout);
+      this.recordingTimeout = null;
+    }
+  }
+
   private async stopAndProcess(): Promise<void> {
+    this.clearRecordingTimeout();
     this.setState("processing");
     try {
       const audio = await this.recorder.stop();
