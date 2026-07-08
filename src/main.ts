@@ -132,9 +132,12 @@ export default class VoiceCommandPlugin extends Plugin {
     );
     const content = renderTemplate(template, cmd);
 
-    const folder = this.settings.notesFolder;
+    // Заказы (intent=order) кладём в отдельную папку, совместимую с плагином
+    // "Дашборд заказов" — иначе он их не увидит.
+    const folder =
+      cmd.intent === "order" ? this.settings.ordersFolder : this.settings.notesFolder;
     if (folder && !this.app.vault.getAbstractFileByPath(normalizePath(folder))) {
-      await this.app.vault.createFolder(normalizePath(folder));
+      await this.app.vault.createFolder(normalizePath(folder)).catch(() => {});
     }
 
     const safeTitle =
@@ -217,6 +220,13 @@ class ConfirmModal extends Modal {
         text: `Дата: ${this.cmd.date}${this.cmd.time ? " " + this.cmd.time : ""}`,
       });
     if (this.cmd.location) c.createEl("p", { text: `Место: ${this.cmd.location}` });
+    if (this.cmd.intent === "order") {
+      c.createEl("p", { text: `Клиент: ${this.cmd.client ?? "—"}` });
+      c.createEl("p", {
+        text: `Цена: ${this.cmd.price ?? 0} ${this.cmd.currency ?? "RUB"}`,
+      });
+      if (this.cmd.orderType) c.createEl("p", { text: `Тип заказа: ${this.cmd.orderType}` });
+    }
     c.createEl("p", { text: `«${this.cmd.transcript}»` }).style.opacity = "0.7";
 
     const buttons = c.createDiv();

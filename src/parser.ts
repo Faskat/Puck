@@ -2,16 +2,24 @@ import { requestUrl } from "obsidian";
 
 /** Результат разбора голосовой команды. */
 export interface ParsedCommand {
-  /** trip | task | meeting | note (fallback) — определяет файл шаблона. */
+  /** trip | task | meeting | order | note (fallback) — определяет файл шаблона. */
   intent: string;
   /** Короткий заголовок заметки. */
   title: string;
-  /** Дата события в формате YYYY-MM-DD, null если не прозвучала. */
+  /** Дата события / дедлайна в формате YYYY-MM-DD, null если не прозвучала. */
   date: string | null;
   /** Время HH:mm, null если не прозвучало. */
   time: string | null;
   /** Место, null если не прозвучало. */
   location: string | null;
+  /** Заказчик (только для intent=order), null если не прозвучал. */
+  client: string | null;
+  /** Цена (только для intent=order), null если не прозвучала. */
+  price: number | null;
+  /** Валюта цены: RUB | UAH | USD | EUR (только для intent=order). */
+  currency: string | null;
+  /** Тип заказа, напр. "спавн"/"карта"/"лобби" (только для intent=order). */
+  orderType: string | null;
   /** Полный исходный транскрипт. */
   transcript: string;
 }
@@ -19,13 +27,27 @@ export interface ParsedCommand {
 const RESPONSE_SCHEMA = {
   type: "object",
   properties: {
-    intent: { type: "string", enum: ["trip", "task", "meeting", "note"] },
+    intent: { type: "string", enum: ["trip", "task", "meeting", "order", "note"] },
     title: { type: "string" },
     date: { type: ["string", "null"] },
     time: { type: ["string", "null"] },
     location: { type: ["string", "null"] },
+    client: { type: ["string", "null"] },
+    price: { type: ["number", "null"] },
+    currency: { type: ["string", "null"], enum: ["RUB", "UAH", "USD", "EUR", null] },
+    orderType: { type: ["string", "null"] },
   },
-  required: ["intent", "title", "date", "time", "location"],
+  required: [
+    "intent",
+    "title",
+    "date",
+    "time",
+    "location",
+    "client",
+    "price",
+    "currency",
+    "orderType",
+  ],
   additionalProperties: false,
 } as const;
 
@@ -57,8 +79,15 @@ export async function parseCommand(
       system:
         `Ты разбираешь голосовые команды для создания заметок. Сегодня ${today} (${weekday}). ` +
         `Относительные даты ("в пятницу", "завтра", "через неделю") разрешай в ближайшую будущую дату от сегодня. ` +
-        `intent: trip — поездки/путешествия; task — задачи/дела; meeting — встречи/созвоны; note — всё остальное. ` +
-        `title — короткий заголовок на языке команды, без дат.`,
+        `intent: trip — поездки/путешествия; task — задачи/дела; meeting — встречи/созвоны; ` +
+        `order — заказ/комиссия для клиента (ключевые слова: "заказ", "закажи", "клиент", "комиссия", ` +
+        `упоминание цены/суммы за работу); note — всё остальное. ` +
+        `title — короткий заголовок на языке команды, без дат. ` +
+        `Для intent=order дополнительно заполни: client — имя заказчика; price — число (без валюты); ` +
+        `currency — RUB/UAH/USD/EUR (если явно не названа валюта, но названы "рублей"/"руб" → RUB, ` +
+        `"гривен"/"грн" → UAH, "долларов"/"баксов" → USD, "евро" → EUR; если валюта вообще не упомянута → RUB); ` +
+        `orderType — тип работы одним-двумя словами (например "спавн", "карта", "лобби"), null если не ясно; ` +
+        `date — дедлайн заказа, если прозвучал. Для остальных intent поля client/price/currency/orderType — null.`,
       messages: [{ role: "user", content: transcript }],
       output_config: {
         format: { type: "json_schema", schema: RESPONSE_SCHEMA },

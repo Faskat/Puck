@@ -12,6 +12,8 @@ export interface VoiceCommandSettings {
   templateFolder: string;
   /** Папка vault, куда складывать созданные заметки. */
   notesFolder: string;
+  /** Папка для заказов (intent=order) — должна совпадать с ordersFolder плагина "Дашборд заказов". */
+  ordersFolder: string;
   /** Показывать превью и просить подтверждение перед созданием заметки. */
   confirmBeforeCreate: boolean;
   /** Режим призрака: без уведомлений, заметка не открывается. */
@@ -26,6 +28,7 @@ export const DEFAULT_SETTINGS: VoiceCommandSettings = {
   language: "ru",
   templateFolder: "Templates/VoiceCommands",
   notesFolder: "VoiceNotes",
+  ordersFolder: "Работа/Орджус/Заказы",
   confirmBeforeCreate: true,
   ghostMode: false,
   writeDoneMarker: false,
@@ -100,6 +103,20 @@ export class VoiceCommandSettingTab extends PluginSettingTab {
       .addText((t) =>
         t.setValue(this.plugin.settings.notesFolder).onChange(async (v) => {
           this.plugin.settings.notesFolder = v.trim();
+          await this.plugin.saveSettings();
+        })
+      );
+
+    new Setting(containerEl)
+      .setName("Папка заказов")
+      .setDesc(
+        "Куда попадают заметки с intent=order (\"создай заказ для...\"). " +
+          "Должна совпадать с папкой заказов в настройках плагина \"Дашборд заказов\", " +
+          "иначе заказ не появится на дашборде."
+      )
+      .addText((t) =>
+        t.setValue(this.plugin.settings.ordersFolder).onChange(async (v) => {
+          this.plugin.settings.ordersFolder = v.trim();
           await this.plugin.saveSettings();
         })
       );
