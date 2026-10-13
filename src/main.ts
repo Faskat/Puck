@@ -35,6 +35,7 @@ export default class VoiceCommandPlugin extends Plugin {
   private log = new ActivityLog();
   private statusBar: HTMLElement | null = null;
   private recordingTimeout: number | null = null;
+  private processing = false;
 
   async onload(): Promise<void> {
     await this.loadSettings();
@@ -79,11 +80,18 @@ export default class VoiceCommandPlugin extends Plugin {
   // ---- Пайплайн ----
 
   private async toggleRecording(): Promise<void> {
+    if (this.processing) return;
+    if (this.recorder.isStarting) {
+      this.recorder.cancel();
+      this.setState("idle");
+      this.notify("Запись отменена");
+      return;
+    }
     if (this.recorder.isRecording) {
       await this.stopAndProcess();
     } else {
       try {
-        await this.recorder.start();
+        if (!await this.recorder.start()) return;
         this.setState("recording");
         this.notify("Запись… нажмите хоткей ещё раз, чтобы остановить");
         this.recordingTimeout = window.setTimeout(() => {
@@ -107,6 +115,8 @@ export default class VoiceCommandPlugin extends Plugin {
   }
 
   private async stopAndProcess(): Promise<void> {
+    if (this.processing) return;
+    this.processing = true;
     this.clearRecordingTimeout();
     this.setState("processing");
     try {
@@ -149,6 +159,8 @@ export default class VoiceCommandPlugin extends Plugin {
     } catch (e) {
       this.fail(errMsg(e));
       await this.writeDoneMarker(false, null);
+    } finally {
+      this.processing = false;
     }
   }
 
